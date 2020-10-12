@@ -1,0 +1,499 @@
+---
+title: "Medicare Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: yeti
+    orientation: rows
+    vertical_layout: scroll
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+# Install required libraries and packages
+#install.packages("plyr")
+#install.packages("lubridate")
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(rpivotTable)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(openintro)
+library(highcharter)
+library(ggvis)
+library(tidyr)
+library(plyr)
+library(purrr)
+library(lubridate)
+library(shiny)
+#library(tidyverse)
+```
+```{r}
+# Reading CSV to Dataframe
+Health = read.csv("data.csv", na.strings=c("","NA"),header=TRUE)
+
+```
+
+```{r}
+#checking for nulls
+#which(is.na(Health))
+
+```
+```{r}
+# Dropping column
+Health <- select(Health,-c(4))
+Health$education <- as.character(Health$education)
+```
+
+
+
+```{r}
+# Changing type of dob column
+a<-as.character(Health$dob)
+Health$dob<-as.Date.character(a, format = "%m/%d/%Y")
+
+
+
+```
+
+```{r}
+#generating age column
+Health$age <- round(lubridate::time_length(difftime("2020-04-14", Health$dob), "years"),digits=2)
+
+```
+```{r}
+Health$education[Health$education %in% "highscool"] <- "highschool"
+Health$education[Health$education %in% "phD/MD"] <- "phd/md"
+Health$education <- as.factor(Health$education)
+```
+
+```{r}
+#str(Health)
+```
+
+
+
+```{r}
+# Getting max values for each categories
+c1 <- table(Health$gender)
+c1a <- names(c1[c1==max(c1)])
+c2 <- table(Health$ancestry)
+c2a <- names(c2[c2==max(c2)])
+c3 <- table(Health$marital_status)
+c3a <- names(c3[c3==max(c3)])
+c4 <- table(Health$disease)
+c4a <- names(c4[c4==max(c4)])
+
+```
+
+# About Data
+
+**The Medicare dataset is about how people with different qualification, profession, age, habbit and habitat suffer from various diseases. The data was collected in 2018 and is sourced at Kaggle.There are 14 different columns in the dataset. 13 columns are used for the Analysis throughout the dashboard.The dashboard aims to show how various factors affect a person's mental and physical health with the help of various interactive visualizations.**
+
+Row {data-height-1000}
+------------------------------------------------
+
+### **Data Description**
+
+Column Name        	 | Description	                                 | Type
+ -----------------------|-----------------------------------------------|------------
+ id                   	| Unique Id for each person	                    | factor
+ gender	                | Gender                                        | factor
+ dob      	            | Date of birth                                 | date
+ employment_status      | Employment status                             | factor
+ education              | Education qualification                       | factor
+ marital_status   	    | Marital status	                              | factor
+ children 	            | Number of children                         	  | int
+ ancestry 	            | Country the diseased belong to	              | factor
+ avg_commute            | Average daily commute time                    | Num
+ daily_internet_use	    | Average daily internet usage                	| Num
+ available_vehicles     | Number of Vehicles owned                      | Num
+ military_service       | Served in Military anytime         	          | factor
+ disease	              | Affected Disease	                            | factor
+ 
+### **About Dashboard**
+
+**Data Table**: An interactive view of the Dataset.  
+
+**Most Affected**: Contains interactive visualisations by most affected Disease, affected Country, gender and qualification group.  
+
+**Various Affecting Factors**: Contains interactive visualisations on how the internet usage, commuting intervals, age, employment type, Number of children and vehicles own affect a persons Mental and physical health.  
+
+**Interactive Highcharter Bar plot**: Gives the count of affected people for the selected disease based on the selected internet usage and commuting time range with their military service.  
+
+**Affected Region across the globe**: Helps to view different affected regions on the Map.  
+
+**Summary**: A brief summary on the findings from the visualizations.
+
+Row
+----------------------------------------
+
+**Please scroll down the pages to view all the graphs**  
+**Submited by: Aishwarya Mysore Ashwinkumar, C00246374 **   
+
+Data Table
+========================================
+
+```{r}
+
+datatable(Health,
+          caption = "Disease Data",
+          rownames = T,
+          filter = "top",
+          options = list(pageLength = 25))
+```
+
+Most Affected
+=====================================
+
+Row {data-height=160}
+-------------------------------------
+
+### **Total affected people**
+
+```{r}
+
+valueBox(value=tags$p(nrow(Health), style = "font-size:10%;"),icon = "fas fa-user-friends", color = NULL)
+
+```
+
+### **Male**
+
+```{r}
+valueBox(value=tags$p(paste0(max(c1)),style = "font-size:10%;") ,icon = "fas fa-mars", color = NULL)
+```
+
+### **Female**
+
+```{r}
+valueBox(value=tags$p(paste0( min(c1)),style = "font-size:10%;") ,icon = "fas fa-venus", color = NULL)
+```
+
+### **Most affected Disease**
+
+```{r}
+valueBox(value=tags$p(paste0(c4a," : ", max(c4)),style = "font-size:10%;") ,icon = NULL, color = NULL)
+```
+
+Row {data-height=380}
+-----------------------------------------------------------------------
+
+### **Most Affected Disease**
+
+```{r}
+data1 <- Health %>%
+        group_by(disease) %>%
+        tally()%>%
+    arrange(desc(n))%>%
+    head(n=7)
+
+plot_ly(data1, labels = ~disease, values = ~n, type = 'pie', textposition = 'inside',
+        textinfo = 'label+percent',
+        insidetextfont = list(color = '#FFFFFF'),
+        hoverinfo = 'text',
+        marker = list(colors = colors,
+                      line = list(color = '#FFFFFF', width =1.5)),
+        showlegend = TRUE)
+```
+
+### **Affected Qualification group**
+
+```{r}
+ Health$education[Health$education %in% "highscool"] <- "highschool"
+Health$education[Health$education %in% "phD/MD"] <- "phd/md"
+df <- Health %>%
+      group_by(education) %>%
+      tally()
+fig <- df %>% plot_ly(labels = ~education, values = ~n)
+fig <- fig %>% add_pie(hole = 0.4)
+fig <- fig %>% layout(
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+
+```
+
+Row {data-height=400}
+----------------------------------------
+
+### **Most Affected Country**
+
+```{r}
+
+data2 <- Health %>%
+        group_by(as.character(ancestry)) %>%
+        tally()%>%
+    arrange(desc(n))%>%
+    head(n=15)
+
+fig <- plot_ly(data2, x = ~n, y = ~`as.character(ancestry)`, type='bar', text= ~n,textposition = 'outside')
+fig <- fig %>% layout(xaxis = list(title = 'Number of diseased',
+                      #zeroline = TRUE,
+                      range = c(50, 125),size=10),
+         yaxis = list(title = 'Country',size=10))
+
+#fig <- fig %>% layout(uniformtext=list(minsize=8, mode='hide'))
+fig
+```
+
+### **Most Affected Gender**
+
+```{r}
+data3 <- Health %>%
+        group_by(gender,disease) %>%
+        tally()
+fig <- plot_ly(data3, x = ~disease, y = ~n, type = 'bar', color= ~gender)
+#fig <- fig %>% add_trace(y = ~gender)
+fig <- fig %>% layout(yaxis = list(title = 'Affected male to female number'),xaxis=list(title='Disease'), barmode = 'grouped')
+
+fig
+```
+
+Various Affecting Factors
+========================================
+
+Row {data-height=150}
+-------------------------------------
+
+### **Average Internet Usage**
+
+```{r}
+
+gauge(round(mean(Health$daily_internet_use),
+            digits = 2),
+            min = 0,
+            max = 9,
+            gaugeSectors(success = c(0, 3),
+                         warning = c(3, 6),
+                         danger = c(6, 9),
+                         colors = c("green", "yellow", "red")))
+```
+
+### **Affected Age Group**
+
+```{r}
+valueBox( round(mean(Health$age)) ,icon ="fas fa-male", color = NULL)
+```
+
+### **Affected married people**
+
+```{r}
+valueBox(paste0(c3a," : ", max(c3)),icon ="fas fa-crown", color = NULL)
+```
+
+### **Average Commute time**
+
+```{r}
+valueBox(paste0(round(mean(Health$avg_commute))),icon = "fas fa-motorcycle", color = NULL)
+```
+
+ Row {data-height=350}
+-----------------------------------------------------------------------
+
+### **Effect of Internet usage**
+
+```{r}
+A <- Health%>%
+  #filter(disease=="Alzheimer's disease"|disease=="hypertension"|disease=="skin cancer"|disease=="kidney disease")%>%
+  select(disease,daily_internet_use)
+fig <- plot_ly(data=A,x=~ disease, y = ~daily_internet_use, color = ~ disease, type = "box")
+fig <- fig %>% layout(xaxis = list(title = 'Disease',
+                      zeroline = TRUE
+                     ,size=10),
+         yaxis = list(title = 'Daily internet usage',size=10))
+fig
+
+```
+
+
+### **Average commute time of different aged and different profession people**
+
+```{r}
+Health$age <- as.numeric(Health$age)
+Health <- Health %>% mutate(age_group = case_when(
+        age >= 20 & age <= 40 ~ "20-40",
+       age >40 & age <= 60 ~ "40-60",
+        age > 60 & age <= 80 ~ "60-80",
+        age >80 & age < 100 ~ "80-100"))
+
+Health$age_group <- as.factor(Health$age_group)
+
+plot5 <- ggplot(Health,aes(age_group,avg_commute))+geom_jitter(aes(fill=employment_status),width=0.25, alpha=0.5)+
+   labs(
+       x = "Age group",
+       y = "AVerage commute time", fill="Employment")
+
+fig <- ggplotly(plot5)
+
+fig
+
+```
+
+ Row {data-height=400}
+---------------------------------------
+
+### **Children and Vehicles owned by diseased** 
+
+```{r}
+fig <- plot_ly(Health, x = ~disease, y = ~children, type = 'bar', name = 'Number of children')
+fig <- fig %>% add_trace(y = ~available_vehicles, name = 'vehicles available')
+fig <- fig %>% layout(yaxis = list(title = 'Number of Diseased'), barmode = 'stack')
+
+fig
+
+```
+
+### **Married to unmarried ratio who are diseased**
+
+```{r}
+data6 <- Health %>%
+        group_by(marital_status,disease) %>%
+        tally()
+fig <- plot_ly(data6, x = ~disease, y = ~n, type = 'waterfall',color= ~marital_status, hoverinfo = 'text',
+        text = ~paste('</br> Status: ', marital_status,
+                      '</br> Number: ', n,
+                      '</br> Disease: ',disease),
+               texttemplate = '%{y:.10s}')
+#fig <- fig %>% add_trace(y = ~gender)
+fig <- fig %>% layout(yaxis = list(title = 'Affected number'),xaxis=list(title='Disease'))
+
+fig
+```
+
+
+Highcharter
+=========================================
+
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+checkboxGroupInput(inputId = "Input_Disease",
+                   label = "Choose the Disease",
+                   choices = unique(Health$disease),
+                   selected = c("Alzheimer's disease","hypertension","skin cancer","kidney disease"))
+```
+
+```{r}
+sliderInput(inputId = "slider_input",
+            label="average commute time",
+            min = 0,
+            max = max(Health$avg_commute),
+            value = c(5,mean(Health$avg_commute))
+            )
+```
+
+
+```{r}
+sliderInput(inputId = "slider_input1",
+            label = "daily internet usage",
+            min = 2,
+            max = max(Health$daily_internet_use),
+            value = c(2,mean(Health$daily_internet_use))
+            )
+```
+
+```{r}
+radioButtons(inputId = "ptype", label = "Military Service", choiceValues = c("yes","no"), choiceNames = c("yes","no"))
+ 
+```
+
+
+```{r}
+renderPrint(expr = {input$Input_Disease
+})
+```
+```{r}
+renderPrint(expr = {input$slider_input
+})
+```
+```{r}
+renderPrint(expr = {input$slider_input1
+})
+
+```
+
+```{r}
+renderPrint(expr = {input$ptype
+})
+
+```
+
+Column {data-height=550}
+-----------------------------------------------------------------------
+
+### **Number of people affected for selected disease based on their internet usage, commute time and their military service**
+
+```{r}
+# Reactive filter
+
+Health1 <- reactive({
+  Health %>%
+    filter(disease %in% input$Input_Disease) %>%
+    filter(avg_commute %>% between(left = input$slider_input[1],right = input$slider_input[2])) %>%
+    filter(daily_internet_use %>% between(left = input$slider_input1[1],right = input$slider_input1[2])) %>%
+    filter(military_service %in% input$ptype)
+  
+})
+```
+
+
+
+```{r}
+renderPlotly({
+  disease_comm <- Health1() %>%
+    select(id,disease)%>%
+    group_by(disease) %>%
+    tally() %>%
+    #arrange(desc(avg_commute)) %>%
+    ggplot(aes(disease,n)) +
+    geom_col(fill="skyblue")+labs(x="Disease", y="Number of Affected")+theme_classic()
+  
+  ggplotly(disease_comm)
+})
+
+```
+
+MAP {size=600}
+===========================================
+
+```{r}
+country_data <- Health %>%
+  group_by(ancestry)%>%
+  tally() 
+
+ 
+data(worldgeojson, package = "highcharter")
+
+highchart(type="map") %>%
+         hc_title(text = "Most Affected regions accross the world") %>%
+        # hc_subtitle(text = "Source: Vehiclefailure.csv") %>%
+         hc_add_series_map(map=worldgeojson, df=country_data,
+                           name = "ancestry",
+                           value = "n",
+                           joinBy = c("name","ancestry")) %>%
+         hc_colorAxis(stops = color_stops())%>%
+         hc_mapNavigation(enabled = T)
+    
+```
+
+Summary
+====================================
+### **A brief Summary on the answers to my findings from various vizualizations.**
+
+Row
+----------------------------------------------------------------
+
+**> Around the globe people are mostly suffering  from ***Alzheimer's disease***.**    
+**> People holding Bachelor's qualification are mostly affected.**  
+**> Ireland has the most affected people than any other countries in the world.**  
+**> Male are more prone to be diseased.**  
+**> People affected from Prostate cancer and Hypertension show high internet usage which might also be the reason for their health status.**  
+**> People under the Age group 60-80 years who are employed or retired travel more on a daily basis.**  
+**> People who are married are more affected than unmarried.**  
+**> People affected from Alzheimer's disease and Hypertension own high number of vehicles and children which might also be the reason for their health status.**  
+
